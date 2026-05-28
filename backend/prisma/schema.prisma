@@ -1,0 +1,583 @@
+// This is your Prisma schema file,
+// learn more about it in the docs: https://pris.ly/d/prisma-schema
+
+// Get a free hosted Postgres database in seconds: `npx create-db`
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+enum InstallationDifficulty {
+  LOW
+  MEDIUM
+  HIGH
+  EXPERT
+}
+
+enum RecommendedTier {
+  ENTRY
+  STANDARD
+  PRO
+  ENTERPRISE
+}
+
+enum ProductType {
+  SWITCH
+  DIMMER
+  SENSOR
+  RELAY
+  CAMERA
+  CURTAIN
+  LOCK
+  HUB
+  PANEL
+  IR_BLASTER
+  ROUTER
+  UPS
+  SPEAKER
+  HVAC
+  OTHER
+}
+
+enum CompatibilityLevel {
+  CERTIFIED
+  COMPATIBLE
+  LIMITED
+  EXPERIMENTAL
+  NOT_SUPPORTED
+}
+
+enum HubRelationType {
+  REQUIRED
+  OPTIONAL
+  NATIVE
+}
+
+enum AutomationRole {
+  TRIGGER
+  CONDITION
+  ACTION
+}
+
+enum QuoteStatus {
+  DRAFT
+  REVIEW
+  FINAL
+  APPROVED
+  ARCHIVED
+}
+
+enum StockStatus {
+  IN_STOCK
+  LOW_STOCK
+  BACKORDER
+  OUT_OF_STOCK
+  DISCONTINUED
+}
+
+enum CapabilityCode {
+  ON_OFF
+  DIMMING
+  RGB
+  MOTION
+  TEMPERATURE
+  HUMIDITY
+  POWER_MONITORING
+  IR_CONTROL
+  AUDIO
+  VIDEO
+  PRESENCE
+  ENERGY_MONITORING
+}
+
+enum InfrastructureRequirementCode {
+  GOOD_WIFI
+  MESH_WIFI
+  ETHERNET
+  UPS_RECOMMENDED
+  VLAN_RECOMMENDED
+  POE_REQUIRED
+}
+
+enum PowerUnit {
+  W
+  VA
+  KW
+}
+
+model Brand {
+  id        String   @id @default(cuid())
+  name      String
+  slug      String
+  website   String?
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  products Product[]
+  hubs     HubGateway[]
+
+  @@unique([slug])
+  @@index([name])
+}
+
+model ProductCategory {
+  id          String   @id @default(cuid())
+  name        String
+  slug        String
+  description String?
+  parentId    String?
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  parent       ProductCategory?      @relation("CategoryHierarchy", fields: [parentId], references: [id], onDelete: SetNull)
+  children     ProductCategory[]     @relation("CategoryHierarchy")
+  productLinks ProductCategoryLink[]
+
+  @@unique([slug])
+  @@index([parentId])
+}
+
+model Protocol {
+  id          String   @id @default(cuid())
+  name        String
+  slug        String
+  description String?
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  productLinks ProductProtocol[]
+
+  @@unique([slug])
+  @@index([name])
+}
+
+model Ecosystem {
+  id          String   @id @default(cuid())
+  name        String
+  slug        String
+  vendor      String?
+  description String?
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  productCompatibilities ProductEcosystemCompatibility[]
+
+  @@unique([slug])
+  @@index([name])
+}
+
+model Supplier {
+  id                 String   @id @default(cuid())
+  name               String
+  website            String?
+  country            String?
+  supportsLocalStock Boolean  @default(false)
+  notes              String?
+  createdAt          DateTime @default(now())
+  updatedAt          DateTime @updatedAt
+
+  products ProductSupplier[]
+
+  @@index([name])
+}
+
+model Capability {
+  id          String         @id @default(cuid())
+  code        CapabilityCode @unique
+  name        String
+  description String?
+  createdAt   DateTime       @default(now())
+  updatedAt   DateTime       @updatedAt
+
+  products ProductCapability[]
+}
+
+model InfrastructureRequirement {
+  id          String                        @id @default(cuid())
+  code        InfrastructureRequirementCode @unique
+  name        String
+  description String?
+  createdAt   DateTime                      @default(now())
+  updatedAt   DateTime                      @updatedAt
+
+  products ProductInfrastructureRequirement[]
+}
+
+model HubGateway {
+  id                   String   @id @default(cuid())
+  brandId              String?
+  name                 String
+  slug                 String
+  modelCode            String?
+  supportsLocalControl Boolean  @default(true)
+  cloudRequired        Boolean  @default(false)
+  maxDevices           Int?
+  notes                String?
+  createdAt            DateTime @default(now())
+  updatedAt            DateTime @updatedAt
+
+  brand    Brand?              @relation(fields: [brandId], references: [id], onDelete: SetNull)
+  products ProductHubGateway[]
+
+  @@unique([slug])
+  @@index([brandId])
+}
+
+model Product {
+  id                     String                 @id @default(cuid())
+  brandId                String
+  productType            ProductType            @default(OTHER)
+  name                   String
+  slug                   String
+  sku                    String?
+  modelCode              String?
+  description            String?
+  requiresNeutral        Boolean                @default(false)
+  localControl           Boolean                @default(true)
+  cloudRequired          Boolean                @default(false)
+  installationDifficulty InstallationDifficulty @default(MEDIUM)
+  recommendedTier        RecommendedTier        @default(STANDARD)
+  powerConsumption       Decimal?               @db.Decimal(10, 2)
+  activePowerUnit        PowerUnit?             @default(W)
+  metadata               Json?
+  createdAt              DateTime               @default(now())
+  updatedAt              DateTime               @updatedAt
+
+  brand                    Brand                              @relation(fields: [brandId], references: [id], onDelete: Restrict)
+  categoryLinks            ProductCategoryLink[]
+  protocolLinks            ProductProtocol[]
+  ecosystemCompatibilities ProductEcosystemCompatibility[]
+  installationLinks        ProductInstallationRequirement[]
+  capabilityLinks          ProductCapability[]
+  infrastructureLinks      ProductInfrastructureRequirement[]
+  supplierLinks            ProductSupplier[]
+  hubLinks                 ProductHubGateway[]
+  automationLinks          AutomationTemplateProduct[]
+  sceneLinks               SceneTemplateProduct[]
+  bundleItems              BundleItem[]
+  quoteItems               QuoteItem[]
+
+  @@unique([slug])
+  @@index([brandId])
+  @@index([productType])
+  @@index([recommendedTier])
+}
+
+model ProductCategoryLink {
+  productId  String
+  categoryId String
+  createdAt  DateTime @default(now())
+
+  product  Product         @relation(fields: [productId], references: [id], onDelete: Cascade)
+  category ProductCategory @relation(fields: [categoryId], references: [id], onDelete: Cascade)
+
+  @@id([productId, categoryId])
+  @@index([categoryId])
+}
+
+model ProductProtocol {
+  productId  String
+  protocolId String
+  isPrimary  Boolean  @default(false)
+  minVersion String?
+  notes      String?
+  createdAt  DateTime @default(now())
+
+  product  Product  @relation(fields: [productId], references: [id], onDelete: Cascade)
+  protocol Protocol @relation(fields: [protocolId], references: [id], onDelete: Cascade)
+
+  @@id([productId, protocolId])
+  @@index([protocolId])
+}
+
+model ProductSupplier {
+  productId             String
+  supplierId            String
+  supplierSku           String?
+  productUrl            String?
+  currency              String?     @db.VarChar(3)
+  price                 Decimal?    @db.Decimal(12, 2)
+  stockStatus           StockStatus @default(IN_STOCK)
+  estimatedDeliveryDays Int?
+  lastValidatedAt       DateTime?
+  isPreferredSupplier   Boolean     @default(false)
+  createdAt             DateTime    @default(now())
+  updatedAt             DateTime    @updatedAt
+
+  product  Product  @relation(fields: [productId], references: [id], onDelete: Cascade)
+  supplier Supplier @relation(fields: [supplierId], references: [id], onDelete: Cascade)
+
+  @@id([productId, supplierId])
+  @@index([supplierId, stockStatus])
+  @@index([isPreferredSupplier])
+}
+
+model ProductCapability {
+  productId    String
+  capabilityId String
+  notes        String?
+  createdAt    DateTime @default(now())
+
+  product    Product    @relation(fields: [productId], references: [id], onDelete: Cascade)
+  capability Capability @relation(fields: [capabilityId], references: [id], onDelete: Cascade)
+
+  @@id([productId, capabilityId])
+  @@index([capabilityId])
+}
+
+model ProductInfrastructureRequirement {
+  productId                   String
+  infrastructureRequirementId String
+  notes                       String?
+  createdAt                   DateTime @default(now())
+
+  product                   Product                   @relation(fields: [productId], references: [id], onDelete: Cascade)
+  infrastructureRequirement InfrastructureRequirement @relation(fields: [infrastructureRequirementId], references: [id], onDelete: Cascade)
+
+  @@id([productId, infrastructureRequirementId])
+  @@index([infrastructureRequirementId])
+}
+
+model ProductEcosystemCompatibility {
+  productId         String
+  ecosystemId       String
+  level             CompatibilityLevel @default(COMPATIBLE)
+  requiresBridge    Boolean            @default(false)
+  requiresCloudLink Boolean            @default(false)
+  notes             String?
+  testedAt          DateTime?
+  createdAt         DateTime           @default(now())
+
+  product   Product   @relation(fields: [productId], references: [id], onDelete: Cascade)
+  ecosystem Ecosystem @relation(fields: [ecosystemId], references: [id], onDelete: Cascade)
+
+  @@id([productId, ecosystemId])
+  @@index([ecosystemId, level])
+}
+
+model InstallationRequirement {
+  id          String   @id @default(cuid())
+  name        String
+  slug        String
+  description String?
+  mandatory   Boolean  @default(true)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  productLinks ProductInstallationRequirement[]
+
+  @@unique([slug])
+  @@index([mandatory])
+}
+
+model ProductInstallationRequirement {
+  productId     String
+  requirementId String
+  notes         String?
+  createdAt     DateTime @default(now())
+
+  product     Product                 @relation(fields: [productId], references: [id], onDelete: Cascade)
+  requirement InstallationRequirement @relation(fields: [requirementId], references: [id], onDelete: Cascade)
+
+  @@id([productId, requirementId])
+  @@index([requirementId])
+}
+
+model ProductHubGateway {
+  productId    String
+  hubId        String
+  relationType HubRelationType @default(OPTIONAL)
+  notes        String?
+  createdAt    DateTime        @default(now())
+
+  product Product    @relation(fields: [productId], references: [id], onDelete: Cascade)
+  hub     HubGateway @relation(fields: [hubId], references: [id], onDelete: Cascade)
+
+  @@id([productId, hubId])
+  @@index([hubId, relationType])
+}
+
+model AutomationTemplate {
+  id          String   @id @default(cuid())
+  name        String
+  slug        String
+  description String?
+  isActive    Boolean  @default(true)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  products AutomationTemplateProduct[]
+
+  @@unique([slug])
+  @@index([isActive])
+}
+
+model AutomationTemplateProduct {
+  id           String         @id @default(cuid())
+  automationId String
+  productId    String
+  role         AutomationRole
+  order        Int            @default(0)
+  notes        String?
+
+  automation AutomationTemplate @relation(fields: [automationId], references: [id], onDelete: Cascade)
+  product    Product            @relation(fields: [productId], references: [id], onDelete: Cascade)
+
+  @@unique([automationId, productId, role])
+  @@index([automationId])
+  @@index([productId, role])
+}
+
+model SceneTemplate {
+  id          String   @id @default(cuid())
+  name        String
+  slug        String
+  description String?
+  isActive    Boolean  @default(true)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  products SceneTemplateProduct[]
+
+  @@unique([slug])
+  @@index([isActive])
+}
+
+model SceneTemplateProduct {
+  sceneId     String
+  productId   String
+  actionLabel String?
+  order       Int      @default(0)
+  createdAt   DateTime @default(now())
+
+  scene   SceneTemplate @relation(fields: [sceneId], references: [id], onDelete: Cascade)
+  product Product       @relation(fields: [productId], references: [id], onDelete: Cascade)
+
+  @@id([sceneId, productId])
+  @@index([productId])
+}
+
+model Bundle {
+  id          String          @id @default(cuid())
+  name        String
+  slug        String          @unique
+  description String?
+  basePrice   Decimal?        @db.Decimal(12, 2)
+  isActive    Boolean         @default(true)
+  tier        RecommendedTier @default(STANDARD)
+  createdAt   DateTime        @default(now())
+  updatedAt   DateTime        @updatedAt
+
+  items      BundleItem[]
+  quoteLinks QuoteBundle[]
+
+  @@index([isActive])
+  @@index([tier])
+}
+
+model BundleItem {
+  bundleId   String
+  productId  String
+  quantity   Int      @default(1)
+  isOptional Boolean  @default(false)
+  notes      String?
+  createdAt  DateTime @default(now())
+
+  bundle  Bundle  @relation(fields: [bundleId], references: [id], onDelete: Cascade)
+  product Product @relation(fields: [productId], references: [id], onDelete: Restrict)
+
+  @@id([bundleId, productId])
+  @@index([productId])
+}
+
+model QuoteBundle {
+  quoteId   String
+  bundleId  String
+  quantity  Int      @default(1)
+  notes     String?
+  createdAt DateTime @default(now())
+
+  quote  Quote  @relation(fields: [quoteId], references: [id], onDelete: Cascade)
+  bundle Bundle @relation(fields: [bundleId], references: [id], onDelete: Restrict)
+
+  @@id([quoteId, bundleId])
+  @@index([bundleId])
+}
+
+model Client {
+  id        String   @id @default(cuid())
+  name      String
+  phone     String?
+  email     String?
+  city      String?
+  notes     String?
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  quotes Quote[]
+
+  @@index([name])
+}
+
+model Room {
+  id        String   @id @default(cuid())
+  quoteId   String
+  name      String
+  floor     Int?     @default(1)
+  areaSqm   Decimal? @db.Decimal(6, 2)
+  notes     String?
+  createdAt DateTime @default(now())
+
+  quote Quote       @relation(fields: [quoteId], references: [id], onDelete: Cascade)
+  items QuoteItem[]
+
+  @@index([quoteId])
+}
+
+model Quote {
+  id                String      @id @default(cuid())
+  clientId          String?
+  client            Client?     @relation(fields: [clientId], references: [id], onDelete: SetNull)
+  quoteNumber       String
+  status            QuoteStatus @default(DRAFT)
+  projectName       String?
+  projectAddress    String?
+  notes             String?
+  estimatedSubtotal Decimal?    @db.Decimal(12, 2)
+  estimatedTotal    Decimal?    @db.Decimal(12, 2)
+  createdAt         DateTime    @default(now())
+  updatedAt         DateTime    @updatedAt
+
+  items   QuoteItem[]
+  rooms   Room[]
+  bundles QuoteBundle[]
+
+  @@unique([quoteNumber])
+  @@index([clientId])
+  @@index([status])
+}
+
+model QuoteItem {
+  id               String   @id @default(cuid())
+  quoteId          String
+  productId        String
+  roomId           String?
+  quantity         Int      @default(1)
+  unitPrice        Decimal? @db.Decimal(12, 2)
+  estimatedInstall Decimal? @db.Decimal(12, 2)
+  notes            String?
+  createdAt        DateTime @default(now())
+
+  quote   Quote   @relation(fields: [quoteId], references: [id], onDelete: Cascade)
+  product Product @relation(fields: [productId], references: [id], onDelete: Restrict)
+  room    Room?   @relation(fields: [roomId], references: [id], onDelete: SetNull)
+
+  @@unique([quoteId, productId])
+  @@index([productId])
+  @@index([roomId])
+}
