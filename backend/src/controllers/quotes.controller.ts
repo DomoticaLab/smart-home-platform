@@ -1,4 +1,5 @@
 import { FastifyRequest, FastifyReply } from 'fastify'
+import type { Prisma } from '@prisma/client'
 import { QuotesService } from '../services/quotes.service'
 
 const service = new QuotesService()
@@ -23,9 +24,9 @@ export async function getQuoteById(
 }
 
 export async function createQuote(
-  req: FastifyRequest,
+  req: FastifyRequest<{ Body: Prisma.QuoteCreateInput }>,
   reply: FastifyReply
 ) {
-  const quote = await service.create(req.body as any)
-  return reply.status(201).send(quote)
+  const quote = await service.create(req.body)
+  return reply.code(201).send(quote)
 }

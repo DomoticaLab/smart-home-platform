@@ -1,16 +1,18 @@
 import type { Prisma } from '@prisma/client'
-import { QuotesRepository } from '../repositories/quotes.repo'
+import { ClientsRepository } from '../repositories/clients.repo'
 
-const repo = new QuotesRepository()
+const repo = new ClientsRepository()
 
-export class QuotesService {
+export class ClientsService {
   async findAll() {
     return repo.findAll()
   }
+
   async findById(id: string) {
     return repo.findById(id)
   }
-  async create(data: Prisma.QuoteCreateInput) {
+
+  async create(data: Prisma.ClientCreateInput) {
     return repo.create(data)
   }
 }

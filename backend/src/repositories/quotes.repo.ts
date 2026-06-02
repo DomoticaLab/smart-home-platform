@@ -1,3 +1,4 @@
+import type { Prisma } from '@prisma/client'
 import { prisma } from '../lib/prisma'
 
 export class QuotesRepository {
@@ -20,7 +21,7 @@ export class QuotesRepository {
     })
   }
 
-  async create(data: any) {
+  async create(data: Prisma.QuoteCreateInput) {
     return prisma.quote.create({ data })
   }
 }
