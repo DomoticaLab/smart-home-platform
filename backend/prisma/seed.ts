@@ -6,12 +6,29 @@ import {
   InstallationDifficulty,
   Prisma,
   PrismaClient,
+  PowerUnit,
   ProductType,
   RecommendedTier,
   StockStatus,
 } from "@prisma/client";
 
 const prisma = new PrismaClient();
+
+type BundleItemInput = {
+  productSlug: string;
+  quantity: number;
+  isOptional: boolean;
+  notes?: string;
+};
+
+type BundleSeedInput = {
+  name: string;
+  slug: string;
+  description: string | null;
+  isActive: boolean;
+  tier: RecommendedTier;
+  items: BundleItemInput[];
+};
 
 type ProtocolLinkInput = {
   slug: string;
@@ -37,6 +54,7 @@ type SupplierLinkInput = {
   stockStatus?: StockStatus;
   estimatedDeliveryDays?: number;
   isPreferredSupplier?: boolean;
+  notes?: string;
 };
 
 type ProductSeedInput = {
@@ -64,6 +82,7 @@ type ProductSeedInput = {
     notes?: string;
   }>;
   suppliers: SupplierLinkInput[];
+  metadata?: Record<string, unknown>;
 };
 
 const brands = [
@@ -73,6 +92,7 @@ const brands = [
   { name: "TP-Link", slug: "tp-link", website: "https://www.tp-link.com" },
   { name: "Hikvision", slug: "hikvision", website: "https://www.hikvision.com" },
   { name: "Ubiquiti", slug: "ubiquiti", website: "https://www.ui.com" },
+  { name: "Broadlink", slug: "broadlink", website: "https://www.ibroadlink.com" },
 ] as const;
 
 const protocols = [
@@ -97,14 +117,19 @@ const protocols = [
     description: "Low-power IPv6 mesh transport used by Matter.",
   },
   {
-    name: "Z-Wave",
-    slug: "z-wave",
-    description: "Sub-GHz mesh protocol for smart-home devices.",
-  },
-  {
     name: "Ethernet",
     slug: "ethernet",
     description: "Wired LAN transport for reliability and low latency.",
+  },
+  {
+    name: "Bluetooth",
+    slug: "bluetooth",
+    description: "Short-range wireless link for provisioning and select accessories.",
+  },
+  {
+    name: "IR (Infrarrojo)",
+    slug: "ir",
+    description: "Infrared line-of-sight control for legacy appliances.",
   },
 ] as const;
 
@@ -202,6 +227,11 @@ const capabilities = [
     name: "Energy Monitoring",
     description: "Accumulated energy and consumption analytics.",
   },
+  {
+    code: CapabilityCode.SCENE,
+    name: "Scene Control",
+    description: "Executes or activates pre-defined scenes and automations.",
+  },
 ] as const;
 
 const infrastructureRequirements = [
@@ -282,6 +312,33 @@ const suppliers = [
     country: "US",
     supportsLocalStock: false,
     notes: "Official vendor for UniFi hardware and accessories.",
+  },
+  {
+    key: "sonoff-co",
+    id: "sup_sonoff_co",
+    name: "SONOFF Colombia",
+    website: "https://sonoff.com.co",
+    country: "CO",
+    supportsLocalStock: true,
+    notes: "Distribuidor local SONOFF en Colombia.",
+  },
+  {
+    key: "alkosto-co",
+    id: "sup_alkosto_co",
+    name: "Alkosto",
+    website: "https://www.alkosto.com",
+    country: "CO",
+    supportsLocalStock: true,
+    notes: "Cadena colombiana con stock local de productos smart-home.",
+  },
+  {
+    key: "itead-cn",
+    id: "sup_itead_cn",
+    name: "ITEAD Oficial",
+    website: "https://www.itead.cc",
+    country: "CN",
+    supportsLocalStock: false,
+    notes: "Fabricante oficial SONOFF. Compra internacional sin stock local.",
   },
 ] as const;
 
@@ -481,7 +538,7 @@ const products: ProductSeedInput[] = [
     brandSlug: "aqara",
     productType: ProductType.HUB,
     name: "Aqara Hub M3",
-    slug: "aqara-hub-m3-product",
+    slug: "aqara-hub-m3",
     sku: "HM-G01D",
     modelCode: "HM-G01D",
     description: "Aqara flagship hub with Matter bridge and IR automation support.",
@@ -512,23 +569,24 @@ const products: ProductSeedInput[] = [
     ],
     suppliers: [
       {
-        supplierKey: "amazon-us",
+        supplierKey: "sonoff-co",
         supplierSku: "HM-G01D",
-        productUrl: "https://www.amazon.com/s?k=Aqara+Hub+M3",
-        currency: "USD",
-        price: 129.99,
+        productUrl: "https://sonoff.com.co/aqara-hub-m3",
+        currency: "COP",
+        price: 450000,
         stockStatus: StockStatus.IN_STOCK,
-        estimatedDeliveryDays: 8,
+        estimatedDeliveryDays: 3,
         isPreferredSupplier: true,
+        notes: "Precio referencial. Verificar stock con el distribuidor.",
       },
       {
-        supplierKey: "smarthouse-co",
+        supplierKey: "mercadolibre-co",
         supplierSku: "HM-G01D",
-        productUrl: "https://smarthousecolombia.com/search?q=Aqara+Hub+M3",
+        productUrl: "https://listado.mercadolibre.com.co/aqara-hub-m3",
         currency: "COP",
-        price: 599000,
-        stockStatus: StockStatus.LOW_STOCK,
-        estimatedDeliveryDays: 3,
+        price: 479000,
+        stockStatus: StockStatus.IN_STOCK,
+        estimatedDeliveryDays: 2,
       },
     ],
   },
@@ -544,9 +602,9 @@ const products: ProductSeedInput[] = [
     localControl: true,
     cloudRequired: false,
     installationDifficulty: InstallationDifficulty.MEDIUM,
-    recommendedTier: RecommendedTier.ENTRY,
+    recommendedTier: RecommendedTier.STANDARD,
     powerConsumption: 0.3,
-    protocols: [{ slug: "zigbee", isPrimary: true, minVersion: "3.0" }],
+    protocols: [{ slug: "zigbee", isPrimary: true, minVersion: "3.0" }, { slug: "wifi", isPrimary: false }],
     capabilities: [CapabilityCode.ON_OFF],
     infrastructureRequirements: [InfrastructureRequirementCode.GOOD_WIFI],
     ecosystemCompatibilities: [
@@ -556,26 +614,17 @@ const products: ProductSeedInput[] = [
       { slug: "homekit", level: CompatibilityLevel.NOT_SUPPORTED },
       { slug: "tuya", level: CompatibilityLevel.NOT_SUPPORTED },
     ],
-    hubRelations: [{ hubSlug: "sonoff-zbbridge-p", relationType: HubRelationType.OPTIONAL }],
+    hubRelations: [{ hubSlug: "sonoff-nspanel-pro-120", relationType: HubRelationType.REQUIRED }],
     suppliers: [
       {
-        supplierKey: "mercadolibre-co",
+        supplierKey: "sonoff-co",
         supplierSku: "ZBMINI-L2",
-        productUrl: "https://listado.mercadolibre.com.co/sonoff-zbmini-l2",
+        productUrl: "https://sonoff.com.co/zbmini-l2",
         currency: "COP",
-        price: 89000,
+        price: 75800,
         stockStatus: StockStatus.IN_STOCK,
         estimatedDeliveryDays: 2,
         isPreferredSupplier: true,
-      },
-      {
-        supplierKey: "amazon-us",
-        supplierSku: "ZBMINI-L2",
-        productUrl: "https://www.amazon.com/s?k=Sonoff+ZBMINI-L2",
-        currency: "USD",
-        price: 17.99,
-        stockStatus: StockStatus.IN_STOCK,
-        estimatedDeliveryDays: 8,
       },
     ],
   },
@@ -629,19 +678,19 @@ const products: ProductSeedInput[] = [
   {
     brandSlug: "sonoff",
     productType: ProductType.PANEL,
-    name: "Sonoff NSPanel Pro",
-    slug: "sonoff-nspanel-pro",
-    sku: "NSPanel Pro",
-    modelCode: "NSPanel Pro",
-    description: "Android-based smart control panel with Zigbee gateway features.",
+    name: "Sonoff NSPanel Pro 120",
+    slug: "sonoff-nspanel-pro-120",
+    sku: "NSPanel Pro 120",
+    modelCode: "NSPanel Pro 120",
+    description: "Touchscreen control panel with built-in Zigbee hub.",
     requiresNeutral: true,
     localControl: true,
     cloudRequired: false,
-    installationDifficulty: InstallationDifficulty.HIGH,
-    recommendedTier: RecommendedTier.PRO,
+    installationDifficulty: InstallationDifficulty.MEDIUM,
+    recommendedTier: RecommendedTier.STANDARD,
     powerConsumption: 5,
-    protocols: [{ slug: "wifi", isPrimary: true }, { slug: "zigbee" }],
-    capabilities: [CapabilityCode.ON_OFF, CapabilityCode.AUDIO],
+    protocols: [{ slug: "zigbee", isPrimary: true, minVersion: "3.0" }, { slug: "wifi", isPrimary: false }],
+    capabilities: [CapabilityCode.ON_OFF, CapabilityCode.SCENE],
     infrastructureRequirements: [InfrastructureRequirementCode.GOOD_WIFI],
     ecosystemCompatibilities: [
       { slug: "home-assistant", level: CompatibilityLevel.COMPATIBLE, notes: "Works through local integrations and MQTT bridging." },
@@ -652,22 +701,13 @@ const products: ProductSeedInput[] = [
     ],
     suppliers: [
       {
-        supplierKey: "amazon-us",
-        supplierSku: "NSPanel Pro",
-        productUrl: "https://www.amazon.com/s?k=Sonoff+NSPanel+Pro",
-        currency: "USD",
-        price: 119,
-        stockStatus: StockStatus.IN_STOCK,
-        estimatedDeliveryDays: 8,
-      },
-      {
-        supplierKey: "mercadolibre-co",
-        supplierSku: "NSPanel Pro",
-        productUrl: "https://listado.mercadolibre.com.co/sonoff-nspanel-pro",
+        supplierKey: "sonoff-co",
+        supplierSku: "NSPanel Pro 120",
+        productUrl: "https://sonoff.com.co/nspanel-pro-120",
         currency: "COP",
-        price: 499000,
-        stockStatus: StockStatus.LOW_STOCK,
-        estimatedDeliveryDays: 3,
+        price: 625800,
+        stockStatus: StockStatus.IN_STOCK,
+        estimatedDeliveryDays: 2,
         isPreferredSupplier: true,
       },
     ],
@@ -1774,6 +1814,501 @@ const products: ProductSeedInput[] = [
       },
     ],
   },
+  // ─── SONOFF ────────────────────────────────────────────────────────────────
+  {
+    brandSlug: "sonoff",
+    productType: ProductType.SENSOR,
+    name: "Sonoff ZBCurtain",
+    slug: "sonoff-zbcurtain",
+    sku: "ZBCurtain",
+    modelCode: "ZBCurtain",
+    description: "Zigbee curtain motor for automated window treatments.",
+    requiresNeutral: false,
+    localControl: true,
+    cloudRequired: false,
+    installationDifficulty: InstallationDifficulty.LOW,
+    recommendedTier: RecommendedTier.STANDARD,
+    powerConsumption: 15,
+    protocols: [{ slug: "zigbee", isPrimary: true, minVersion: "3.0" }],
+    capabilities: [CapabilityCode.ON_OFF],
+    infrastructureRequirements: [InfrastructureRequirementCode.GOOD_WIFI],
+    ecosystemCompatibilities: [
+      { slug: "home-assistant", level: CompatibilityLevel.CERTIFIED, requiresBridge: true },
+      { slug: "alexa", level: CompatibilityLevel.LIMITED, requiresBridge: true, requiresCloudLink: true },
+      { slug: "google-home", level: CompatibilityLevel.LIMITED, requiresBridge: true, requiresCloudLink: true },
+      { slug: "homekit", level: CompatibilityLevel.NOT_SUPPORTED },
+      { slug: "tuya", level: CompatibilityLevel.NOT_SUPPORTED },
+    ],
+    hubRelations: [{ hubSlug: "sonoff-nspanel-pro-120", relationType: HubRelationType.REQUIRED }],
+    suppliers: [
+      {
+        supplierKey: "sonoff-co",
+        supplierSku: "ZBCurtain",
+        productUrl: "https://sonoff.com.co/zbcurtain",
+        currency: "COP",
+        price: 445800,
+        stockStatus: StockStatus.OUT_OF_STOCK,
+        estimatedDeliveryDays: 7,
+        notes: "Sin stock en sonoff.com.co a mayo 2026.",
+        isPreferredSupplier: true,
+      },
+    ],
+    metadata: { nota: "Sin stock en sonoff.com.co a mayo 2026" },
+  },
+  {
+    brandSlug: "sonoff",
+    productType: ProductType.SENSOR,
+    name: "Sonoff SNZB-03P",
+    slug: "sonoff-snzb-03p",
+    sku: "SNZB-03P",
+    modelCode: "SNZB-03P",
+    description: "Zigbee motion sensor for occupancy detection.",
+    requiresNeutral: false,
+    localControl: true,
+    cloudRequired: false,
+    installationDifficulty: InstallationDifficulty.LOW,
+    recommendedTier: RecommendedTier.STANDARD,
+    powerConsumption: 0.05,
+    protocols: [{ slug: "zigbee", isPrimary: true, minVersion: "3.0" }],
+    capabilities: [CapabilityCode.MOTION, CapabilityCode.PRESENCE],
+    infrastructureRequirements: [InfrastructureRequirementCode.GOOD_WIFI],
+    ecosystemCompatibilities: [
+      { slug: "home-assistant", level: CompatibilityLevel.CERTIFIED, requiresBridge: true },
+      { slug: "alexa", level: CompatibilityLevel.LIMITED, requiresBridge: true, requiresCloudLink: true },
+      { slug: "google-home", level: CompatibilityLevel.LIMITED, requiresBridge: true, requiresCloudLink: true },
+      { slug: "homekit", level: CompatibilityLevel.NOT_SUPPORTED },
+      { slug: "tuya", level: CompatibilityLevel.NOT_SUPPORTED },
+    ],
+    hubRelations: [{ hubSlug: "sonoff-nspanel-pro-120", relationType: HubRelationType.REQUIRED }],
+    suppliers: [
+      {
+        supplierKey: "sonoff-co",
+        supplierSku: "SNZB-03P",
+        productUrl: "https://sonoff.com.co/snzb-03p",
+        currency: "COP",
+        price: 79800,
+        stockStatus: StockStatus.IN_STOCK,
+        estimatedDeliveryDays: 2,
+        isPreferredSupplier: true,
+      },
+    ],
+  },
+  {
+    brandSlug: "sonoff",
+    productType: ProductType.SENSOR,
+    name: "Sonoff SNZB-04P",
+    slug: "sonoff-snzb-04p",
+    sku: "SNZB-04P",
+    modelCode: "SNZB-04P",
+    description: "Zigbee door/window magnetic contact sensor.",
+    requiresNeutral: false,
+    localControl: true,
+    cloudRequired: false,
+    installationDifficulty: InstallationDifficulty.LOW,
+    recommendedTier: RecommendedTier.ENTRY,
+    powerConsumption: 0.03,
+    protocols: [{ slug: "zigbee", isPrimary: true, minVersion: "3.0" }],
+    capabilities: [CapabilityCode.ON_OFF],
+    infrastructureRequirements: [InfrastructureRequirementCode.GOOD_WIFI],
+    ecosystemCompatibilities: [
+      { slug: "home-assistant", level: CompatibilityLevel.CERTIFIED, requiresBridge: true },
+      { slug: "alexa", level: CompatibilityLevel.LIMITED, requiresBridge: true, requiresCloudLink: true },
+      { slug: "google-home", level: CompatibilityLevel.LIMITED, requiresBridge: true, requiresCloudLink: true },
+      { slug: "homekit", level: CompatibilityLevel.NOT_SUPPORTED },
+      { slug: "tuya", level: CompatibilityLevel.NOT_SUPPORTED },
+    ],
+    hubRelations: [{ hubSlug: "sonoff-nspanel-pro-120", relationType: HubRelationType.REQUIRED }],
+    suppliers: [
+      {
+        supplierKey: "sonoff-co",
+        supplierSku: "SNZB-04P",
+        productUrl: "https://sonoff.com.co/snzb-04p",
+        currency: "COP",
+        price: 69800,
+        stockStatus: StockStatus.IN_STOCK,
+        estimatedDeliveryDays: 2,
+        isPreferredSupplier: true,
+      },
+    ],
+  },
+  {
+    brandSlug: "sonoff",
+    productType: ProductType.SENSOR,
+    name: "Sonoff SNZB-02P",
+    slug: "sonoff-snzb-02p",
+    sku: "SNZB-02P",
+    modelCode: "SNZB-02P",
+    description: "Zigbee temperature and humidity sensor for climate monitoring.",
+    requiresNeutral: false,
+    localControl: true,
+    cloudRequired: false,
+    installationDifficulty: InstallationDifficulty.LOW,
+    recommendedTier: RecommendedTier.STANDARD,
+    powerConsumption: 0.04,
+    protocols: [{ slug: "zigbee", isPrimary: true, minVersion: "3.0" }],
+    capabilities: [CapabilityCode.TEMPERATURE, CapabilityCode.HUMIDITY],
+    infrastructureRequirements: [InfrastructureRequirementCode.GOOD_WIFI],
+    ecosystemCompatibilities: [
+      { slug: "home-assistant", level: CompatibilityLevel.CERTIFIED, requiresBridge: true },
+      { slug: "alexa", level: CompatibilityLevel.LIMITED, requiresBridge: true, requiresCloudLink: true },
+      { slug: "google-home", level: CompatibilityLevel.LIMITED, requiresBridge: true, requiresCloudLink: true },
+      { slug: "homekit", level: CompatibilityLevel.NOT_SUPPORTED },
+      { slug: "tuya", level: CompatibilityLevel.NOT_SUPPORTED },
+    ],
+    hubRelations: [{ hubSlug: "sonoff-nspanel-pro-120", relationType: HubRelationType.REQUIRED }],
+    suppliers: [
+      {
+        supplierKey: "sonoff-co",
+        supplierSku: "SNZB-02P",
+        productUrl: "https://sonoff.com.co/snzb-02p",
+        currency: "COP",
+        price: 69800,
+        stockStatus: StockStatus.IN_STOCK,
+        estimatedDeliveryDays: 2,
+        isPreferredSupplier: true,
+      },
+    ],
+  },
+  {
+    brandSlug: "sonoff",
+    productType: ProductType.SENSOR,
+    name: "Sonoff SNZB-05P",
+    slug: "sonoff-snzb-05p",
+    sku: "SNZB-05P",
+    modelCode: "SNZB-05P",
+    description: "Zigbee water leak sensor for kitchen and bathroom protection.",
+    requiresNeutral: false,
+    localControl: true,
+    cloudRequired: false,
+    installationDifficulty: InstallationDifficulty.LOW,
+    recommendedTier: RecommendedTier.STANDARD,
+    powerConsumption: 0.03,
+    protocols: [{ slug: "zigbee", isPrimary: true, minVersion: "3.0" }],
+    capabilities: [CapabilityCode.ON_OFF],
+    infrastructureRequirements: [InfrastructureRequirementCode.GOOD_WIFI],
+    ecosystemCompatibilities: [
+      { slug: "home-assistant", level: CompatibilityLevel.CERTIFIED, requiresBridge: true },
+      { slug: "alexa", level: CompatibilityLevel.LIMITED, requiresBridge: true, requiresCloudLink: true },
+      { slug: "google-home", level: CompatibilityLevel.LIMITED, requiresBridge: true, requiresCloudLink: true },
+      { slug: "homekit", level: CompatibilityLevel.NOT_SUPPORTED },
+      { slug: "tuya", level: CompatibilityLevel.NOT_SUPPORTED },
+    ],
+    hubRelations: [{ hubSlug: "sonoff-nspanel-pro-120", relationType: HubRelationType.REQUIRED }],
+    suppliers: [
+      {
+        supplierKey: "sonoff-co",
+        supplierSku: "SNZB-05P",
+        productUrl: "https://sonoff.com.co/snzb-05p",
+        currency: "COP",
+        price: 79800,
+        stockStatus: StockStatus.IN_STOCK,
+        estimatedDeliveryDays: 2,
+        isPreferredSupplier: true,
+      },
+    ],
+  },
+  {
+    brandSlug: "sonoff",
+    productType: ProductType.SWITCH,
+    name: "Sonoff T2US-1C",
+    slug: "sonoff-t2us-1c",
+    sku: "T2US-1C",
+    modelCode: "T2US-1C",
+    description: "WiFi wall touch switch, single rocker, no neutral required.",
+    requiresNeutral: false,
+    localControl: true,
+    cloudRequired: false,
+    installationDifficulty: InstallationDifficulty.LOW,
+    recommendedTier: RecommendedTier.STANDARD,
+    powerConsumption: 0.5,
+    protocols: [{ slug: "wifi", isPrimary: true }],
+    capabilities: [CapabilityCode.ON_OFF],
+    infrastructureRequirements: [InfrastructureRequirementCode.GOOD_WIFI],
+    ecosystemCompatibilities: [
+      { slug: "home-assistant", level: CompatibilityLevel.COMPATIBLE, requiresBridge: true },
+      { slug: "alexa", level: CompatibilityLevel.COMPATIBLE, requiresCloudLink: true },
+      { slug: "google-home", level: CompatibilityLevel.COMPATIBLE, requiresCloudLink: true },
+      { slug: "homekit", level: CompatibilityLevel.NOT_SUPPORTED },
+      { slug: "tuya", level: CompatibilityLevel.COMPATIBLE, requiresCloudLink: true },
+    ],
+    suppliers: [
+      {
+        supplierKey: "sonoff-co",
+        supplierSku: "T2US-1C",
+        productUrl: "https://sonoff.com.co/t2us-1c",
+        currency: "COP",
+        price: 132800,
+        stockStatus: StockStatus.IN_STOCK,
+        estimatedDeliveryDays: 2,
+        isPreferredSupplier: true,
+      },
+    ],
+  },
+  {
+    brandSlug: "sonoff",
+    productType: ProductType.SWITCH,
+    name: "Sonoff S31 Lite Zigbee",
+    slug: "sonoff-s31lite-zb",
+    sku: "S31Lite-ZB",
+    modelCode: "S31Lite-ZB",
+    description: "Zigbee smart plug with power monitoring.",
+    requiresNeutral: false,
+    localControl: true,
+    cloudRequired: false,
+    installationDifficulty: InstallationDifficulty.LOW,
+    recommendedTier: RecommendedTier.STANDARD,
+    powerConsumption: 1.5,
+    protocols: [{ slug: "zigbee", isPrimary: true, minVersion: "3.0" }],
+    capabilities: [CapabilityCode.ON_OFF, CapabilityCode.POWER_MONITORING],
+    infrastructureRequirements: [InfrastructureRequirementCode.GOOD_WIFI],
+    ecosystemCompatibilities: [
+      { slug: "home-assistant", level: CompatibilityLevel.CERTIFIED, requiresBridge: true },
+      { slug: "alexa", level: CompatibilityLevel.LIMITED, requiresBridge: true, requiresCloudLink: true },
+      { slug: "google-home", level: CompatibilityLevel.LIMITED, requiresBridge: true, requiresCloudLink: true },
+      { slug: "homekit", level: CompatibilityLevel.NOT_SUPPORTED },
+      { slug: "tuya", level: CompatibilityLevel.NOT_SUPPORTED },
+    ],
+    hubRelations: [{ hubSlug: "sonoff-nspanel-pro-120", relationType: HubRelationType.REQUIRED }],
+    suppliers: [
+      {
+        supplierKey: "sonoff-co",
+        supplierSku: "S31Lite-ZB",
+        productUrl: "https://sonoff.com.co/s31lite-zb",
+        currency: "COP",
+        price: 85800,
+        stockStatus: StockStatus.IN_STOCK,
+        estimatedDeliveryDays: 2,
+        isPreferredSupplier: true,
+      },
+    ],
+  },
+  {
+    brandSlug: "sonoff",
+    productType: ProductType.SENSOR,
+    name: "Sonoff SNZB-06P",
+    slug: "sonoff-snzb-06p",
+    sku: "SNZB-06P",
+    modelCode: "SNZB-06P",
+    description: "Zigbee mmWave presence sensor for accurate human detection.",
+    requiresNeutral: false,
+    localControl: true,
+    cloudRequired: false,
+    installationDifficulty: InstallationDifficulty.LOW,
+    recommendedTier: RecommendedTier.PRO,
+    powerConsumption: 0.08,
+    protocols: [{ slug: "zigbee", isPrimary: true, minVersion: "3.0" }],
+    capabilities: [CapabilityCode.PRESENCE, CapabilityCode.MOTION],
+    infrastructureRequirements: [InfrastructureRequirementCode.GOOD_WIFI],
+    ecosystemCompatibilities: [
+      { slug: "home-assistant", level: CompatibilityLevel.CERTIFIED, requiresBridge: true },
+      { slug: "alexa", level: CompatibilityLevel.LIMITED, requiresBridge: true, requiresCloudLink: true },
+      { slug: "google-home", level: CompatibilityLevel.LIMITED, requiresBridge: true, requiresCloudLink: true },
+      { slug: "homekit", level: CompatibilityLevel.NOT_SUPPORTED },
+      { slug: "tuya", level: CompatibilityLevel.NOT_SUPPORTED },
+    ],
+    hubRelations: [{ hubSlug: "sonoff-nspanel-pro-120", relationType: HubRelationType.REQUIRED }],
+    suppliers: [
+      {
+        supplierKey: "sonoff-co",
+        supplierSku: "SNZB-06P",
+        productUrl: "https://sonoff.com.co/snzb-06p",
+        currency: "COP",
+        price: 112860,
+        stockStatus: StockStatus.IN_STOCK,
+        estimatedDeliveryDays: 2,
+        isPreferredSupplier: true,
+      },
+    ],
+  },
+  // ─── BROADLINK ─────────────────────────────────────────────────────────────
+  {
+    brandSlug: "broadlink",
+    productType: ProductType.IR_BLASTER,
+    name: "Broadlink RM4 Mini",
+    slug: "broadlink-rm4-mini",
+    sku: "RM4Mini",
+    modelCode: "RM4Mini",
+    description: "WiFi + IR universal remote for air conditioners, TVs and home theater.",
+    requiresNeutral: false,
+    localControl: true,
+    cloudRequired: false,
+    installationDifficulty: InstallationDifficulty.LOW,
+    recommendedTier: RecommendedTier.STANDARD,
+    powerConsumption: 1,
+    protocols: [{ slug: "wifi", isPrimary: true }, { slug: "ir" }],
+    capabilities: [CapabilityCode.IR_CONTROL],
+    infrastructureRequirements: [InfrastructureRequirementCode.GOOD_WIFI],
+    ecosystemCompatibilities: [
+      { slug: "home-assistant", level: CompatibilityLevel.COMPATIBLE, requiresBridge: true },
+      { slug: "alexa", level: CompatibilityLevel.COMPATIBLE, requiresCloudLink: true },
+      { slug: "google-home", level: CompatibilityLevel.COMPATIBLE, requiresCloudLink: true },
+      { slug: "homekit", level: CompatibilityLevel.NOT_SUPPORTED },
+      { slug: "tuya", level: CompatibilityLevel.COMPATIBLE, requiresCloudLink: true },
+    ],
+    suppliers: [
+      {
+        supplierKey: "sonoff-co",
+        supplierSku: "RM4Mini",
+        productUrl: "https://sonoff.com.co/rm4-mini",
+        currency: "COP",
+        price: 85000,
+        stockStatus: StockStatus.IN_STOCK,
+        estimatedDeliveryDays: 3,
+        notes: "Precio referencial. Verificar disponibilidad con el proveedor.",
+        isPreferredSupplier: true,
+      },
+      {
+        supplierKey: "mercadolibre-co",
+        supplierSku: "RM4Mini",
+        productUrl: "https://listado.mercadolibre.com.co/broadlink-rm4-mini",
+        currency: "COP",
+        price: 95000,
+        stockStatus: StockStatus.IN_STOCK,
+        estimatedDeliveryDays: 2,
+      },
+    ],
+  },
+];
+
+const bundles: BundleSeedInput[] = [
+  {
+    name: "Hogar Conectado",
+    slug: "bundle-entry-hogar-conectado",
+    description:
+      "Control básico de iluminación desde app y voz. Ideal para iniciar sin inversión alta.",
+    isActive: true,
+    tier: RecommendedTier.ENTRY,
+    items: [
+      {
+        productSlug: "sonoff-nspanel-pro-120",
+        quantity: 1,
+        isOptional: false,
+        notes: "Panel táctil + hub Zigbee integrado.",
+      },
+      {
+        productSlug: "sonoff-zbmini-l2",
+        quantity: 6,
+        isOptional: false,
+        notes: "Para 6 puntos de luz sin neutro.",
+      },
+      {
+        productSlug: "sonoff-snzb-04p",
+        quantity: 2,
+        isOptional: true,
+        notes: "Sensores de puerta opcionales.",
+      },
+    ],
+  },
+  {
+    name: "Hogar Inteligente",
+    slug: "bundle-standard-hogar-inteligente",
+    description:
+      "Iluminación + cortinas + climatización. El más elegido para apartamentos de 50-60m².",
+    isActive: true,
+    tier: RecommendedTier.STANDARD,
+    items: [
+      {
+        productSlug: "sonoff-nspanel-pro-120",
+        quantity: 1,
+        isOptional: false,
+        notes: "Panel táctil + hub Zigbee integrado.",
+      },
+      {
+        productSlug: "sonoff-zbmini-l2",
+        quantity: 9,
+        isOptional: false,
+        notes: "Para 9 puntos de luz sin neutro.",
+      },
+      {
+        productSlug: "sonoff-zbcurtain",
+        quantity: 4,
+        isOptional: false,
+        notes: "4 motores de cortina Zigbee.",
+      },
+      {
+        productSlug: "broadlink-rm4-mini",
+        quantity: 2,
+        isOptional: false,
+        notes: "2 controles IR para aire acondicionado.",
+      },
+      {
+        productSlug: "sonoff-snzb-03p",
+        quantity: 2,
+        isOptional: false,
+        notes: "Sensores de movimiento.",
+      },
+      {
+        productSlug: "sonoff-snzb-04p",
+        quantity: 2,
+        isOptional: true,
+        notes: "Sensores de puerta opcionales.",
+      },
+    ],
+  },
+  {
+    name: "Hogar Premium",
+    slug: "bundle-pro-hogar-premium",
+    description:
+      "Sistema completo. Seguridad, confort, eficiencia energética.",
+    isActive: true,
+    tier: RecommendedTier.PRO,
+    items: [
+      {
+        productSlug: "sonoff-nspanel-pro-120",
+        quantity: 1,
+        isOptional: false,
+        notes: "Panel táctil + hub Zigbee integrado.",
+      },
+      {
+        productSlug: "sonoff-zbmini-l2",
+        quantity: 9,
+        isOptional: false,
+        notes: "Para 9 puntos de luz sin neutro.",
+      },
+      {
+        productSlug: "sonoff-zbcurtain",
+        quantity: 4,
+        isOptional: false,
+        notes: "4 motores de cortina Zigbee.",
+      },
+      {
+        productSlug: "broadlink-rm4-mini",
+        quantity: 2,
+        isOptional: false,
+        notes: "2 controles IR para aire acondicionado.",
+      },
+      {
+        productSlug: "sonoff-snzb-03p",
+        quantity: 2,
+        isOptional: false,
+        notes: "Sensores de movimiento.",
+      },
+      {
+        productSlug: "sonoff-snzb-06p",
+        quantity: 2,
+        isOptional: false,
+        notes: "Sensores de presencia mmWave PRO.",
+      },
+      {
+        productSlug: "sonoff-snzb-04p",
+        quantity: 2,
+        isOptional: false,
+        notes: "Sensores de puerta.",
+      },
+      {
+        productSlug: "sonoff-snzb-05p",
+        quantity: 2,
+        isOptional: true,
+        notes: "Sensores de fuga de agua opcionales.",
+      },
+      {
+        productSlug: "sonoff-s31lite-zb",
+        quantity: 4,
+        isOptional: true,
+        notes: "Enchufes inteligentes con monitoreo de potencia opcionales.",
+      },
+    ],
+  },
 ];
 
 const hubGateways = [
@@ -1786,6 +2321,16 @@ const hubGateways = [
     cloudRequired: false,
     maxDevices: 127,
     notes: "Recommended Aqara bridge; can coexist with Home Assistant.",
+  },
+  {
+    brandSlug: "sonoff",
+    name: "Sonoff NSPanel Pro 120",
+    slug: "sonoff-nspanel-pro-120",
+    modelCode: "NSPanel Pro 120",
+    supportsLocalControl: true,
+    cloudRequired: false,
+    maxDevices: 128,
+    notes: "Touchscreen control panel with built-in Zigbee hub.",
   },
   {
     brandSlug: "sonoff",
@@ -1807,6 +2352,16 @@ const hubGateways = [
     maxDevices: 200,
     notes: "Network core used as automation infrastructure anchor.",
   },
+  {
+    brandSlug: null,
+    name: "Home Assistant",
+    slug: "home-assistant-hub",
+    modelCode: null,
+    supportsLocalControl: true,
+    cloudRequired: false,
+    maxDevices: null,
+    notes: "Generic local-first hub. Use when the project centers on Home Assistant.",
+  },
 ] as const;
 
 async function main() {
@@ -1816,11 +2371,21 @@ async function main() {
     "aqara-door-window-sensor-p2",
     "aqara-curtain-driver-e1",
     "aqara-smart-lock-u100",
+    "aqara-hub-m3",
     "sonoff-zbmini-l2",
     "sonoff-zbmini-r2",
-    "sonoff-nspanel-pro",
+    "sonoff-nspanel-pro-120",
+    "sonoff-zbcurtain",
     "sonoff-snzb-02d",
     "sonoff-zbbridge-p-product",
+    "sonoff-snzb-03p",
+    "sonoff-snzb-04p",
+    "sonoff-snzb-02p",
+    "sonoff-snzb-05p",
+    "sonoff-t2us-1c",
+    "sonoff-s31lite-zb",
+    "sonoff-snzb-06p",
+    "broadlink-rm4-mini",
     "shelly-1pm-gen3",
     "shelly-dimmer-2",
     "shelly-plus-i4",
@@ -1849,135 +2414,175 @@ async function main() {
   const capabilityIds = new Map<CapabilityCode, string>();
   const infrastructureIds = new Map<InfrastructureRequirementCode, string>();
   const hubIds = new Map<string, string>();
+  const productIdsBySlug = new Map<string, string>();
 
-  for (const brand of brands) {
-    const row = await prisma.brand.upsert({
-      where: { slug: brand.slug },
-      update: { name: brand.name, website: brand.website },
-      create: { name: brand.name, slug: brand.slug, website: brand.website },
-    });
-    brandIds.set(brand.slug, row.id);
-  }
+  // 1) Marcas
+  const brandRows = await prisma.$transaction(
+    brands.map((brand) =>
+      prisma.brand.upsert({
+        where: { slug: brand.slug },
+        update: { name: brand.name, website: brand.website },
+        create: { name: brand.name, slug: brand.slug, website: brand.website },
+      }),
+    ),
+  );
+  brandRows.forEach((row, i) => {
+    const brand = brands[i];
+    if (brand) brandIds.set(brand.slug, row.id);
+  });
 
-  for (const protocol of protocols) {
-    const row = await prisma.protocol.upsert({
-      where: { slug: protocol.slug },
-      update: {
-        name: protocol.name,
-        description: protocol.description,
-      },
-      create: {
-        name: protocol.name,
-        slug: protocol.slug,
-        description: protocol.description,
-      },
-    });
-    protocolIds.set(protocol.slug, row.id);
-  }
+  // 2) Protocolos
+  const protocolRows = await prisma.$transaction(
+    protocols.map((protocol) =>
+      prisma.protocol.upsert({
+        where: { slug: protocol.slug },
+        update: {
+          name: protocol.name,
+          description: protocol.description,
+        },
+        create: {
+          name: protocol.name,
+          slug: protocol.slug,
+          description: protocol.description,
+        },
+      }),
+    ),
+  );
+  protocolRows.forEach((row, i) => {
+    const protocol = protocols[i];
+    if (protocol) protocolIds.set(protocol.slug, row.id);
+  });
 
-  for (const ecosystem of ecosystems) {
-    const row = await prisma.ecosystem.upsert({
-      where: { slug: ecosystem.slug },
-      update: {
-        name: ecosystem.name,
-        vendor: ecosystem.vendor,
-        description: ecosystem.description,
-      },
-      create: {
-        name: ecosystem.name,
-        slug: ecosystem.slug,
-        vendor: ecosystem.vendor,
-        description: ecosystem.description,
-      },
-    });
-    ecosystemIds.set(ecosystem.slug, row.id);
-  }
+  // 3) Ecosistemas
+  const ecosystemRows = await prisma.$transaction(
+    ecosystems.map((ecosystem) =>
+      prisma.ecosystem.upsert({
+        where: { slug: ecosystem.slug },
+        update: {
+          name: ecosystem.name,
+          vendor: ecosystem.vendor,
+          description: ecosystem.description,
+        },
+        create: {
+          name: ecosystem.name,
+          slug: ecosystem.slug,
+          vendor: ecosystem.vendor,
+          description: ecosystem.description,
+        },
+      }),
+    ),
+  );
+  ecosystemRows.forEach((row, i) => {
+    const ecosystem = ecosystems[i];
+    if (ecosystem) ecosystemIds.set(ecosystem.slug, row.id);
+  });
 
-  for (const capability of capabilities) {
-    const row = await prisma.capability.upsert({
-      where: { code: capability.code },
-      update: {
-        name: capability.name,
-        description: capability.description,
-      },
-      create: {
-        code: capability.code,
-        name: capability.name,
-        description: capability.description,
-      },
-    });
-    capabilityIds.set(capability.code, row.id);
-  }
+  // 4) Capacidades
+  const capabilityRows = await prisma.$transaction(
+    capabilities.map((capability) =>
+      prisma.capability.upsert({
+        where: { code: capability.code },
+        update: {
+          name: capability.name,
+          description: capability.description,
+        },
+        create: {
+          code: capability.code,
+          name: capability.name,
+          description: capability.description,
+        },
+      }),
+    ),
+  );
+  capabilityRows.forEach((row, i) => {
+    const capability = capabilities[i];
+    if (capability) capabilityIds.set(capability.code, row.id);
+  });
 
-  for (const infra of infrastructureRequirements) {
-    const row = await prisma.infrastructureRequirement.upsert({
-      where: { code: infra.code },
-      update: {
-        name: infra.name,
-        description: infra.description,
-      },
-      create: {
-        code: infra.code,
-        name: infra.name,
-        description: infra.description,
-      },
-    });
-    infrastructureIds.set(infra.code, row.id);
-  }
+  // 5) Requisitos de infraestructura
+  const infrastructureRows = await prisma.$transaction(
+    infrastructureRequirements.map((infra) =>
+      prisma.infrastructureRequirement.upsert({
+        where: { code: infra.code },
+        update: {
+          name: infra.name,
+          description: infra.description,
+        },
+        create: {
+          code: infra.code,
+          name: infra.name,
+          description: infra.description,
+        },
+      }),
+    ),
+  );
+  infrastructureRows.forEach((row, i) => {
+    const infra = infrastructureRequirements[i];
+    if (infra) infrastructureIds.set(infra.code, row.id);
+  });
 
-  for (const supplier of suppliers) {
-    const row = await prisma.supplier.upsert({
-      where: { id: supplier.id },
-      update: {
-        name: supplier.name,
-        website: supplier.website,
-        country: supplier.country,
-        supportsLocalStock: supplier.supportsLocalStock,
-        notes: supplier.notes,
-      },
-      create: {
-        id: supplier.id,
-        name: supplier.name,
-        website: supplier.website,
-        country: supplier.country,
-        supportsLocalStock: supplier.supportsLocalStock,
-        notes: supplier.notes,
-      },
-    });
-    supplierIds.set(supplier.key, row.id);
-  }
+  // 6) Proveedores
+  const supplierRows = await prisma.$transaction(
+    suppliers.map((supplier) =>
+      prisma.supplier.upsert({
+        where: { id: supplier.id },
+        update: {
+          name: supplier.name,
+          website: supplier.website,
+          country: supplier.country,
+          supportsLocalStock: supplier.supportsLocalStock,
+          notes: supplier.notes,
+        },
+        create: {
+          id: supplier.id,
+          name: supplier.name,
+          website: supplier.website,
+          country: supplier.country,
+          supportsLocalStock: supplier.supportsLocalStock,
+          notes: supplier.notes,
+        },
+      }),
+    ),
+  );
+  supplierRows.forEach((row, i) => {
+    const supplier = suppliers[i];
+    if (supplier) supplierIds.set(supplier.key, row.id);
+  });
 
-  for (const hub of hubGateways) {
-    const brandId = brandIds.get(hub.brandSlug);
-    if (!brandId) {
-      throw new Error(`Brand not found for hub: ${hub.brandSlug}`);
-    }
-
-    const row = await prisma.hubGateway.upsert({
-      where: { slug: hub.slug },
-      update: {
-        brandId,
-        name: hub.name,
-        modelCode: hub.modelCode,
-        supportsLocalControl: hub.supportsLocalControl,
-        cloudRequired: hub.cloudRequired,
-        maxDevices: hub.maxDevices,
-        notes: hub.notes,
-      },
-      create: {
-        brandId,
-        name: hub.name,
-        slug: hub.slug,
-        modelCode: hub.modelCode,
-        supportsLocalControl: hub.supportsLocalControl,
-        cloudRequired: hub.cloudRequired,
-        maxDevices: hub.maxDevices,
-        notes: hub.notes,
-      },
-    });
-
-    hubIds.set(hub.slug, row.id);
-  }
+  // 7) Hubs
+  const hubRows = await prisma.$transaction(
+    hubGateways.map((hub) => {
+      const brandId = hub.brandSlug
+        ? brandIds.get(hub.brandSlug) ?? null
+        : null;
+      return prisma.hubGateway.upsert({
+        where: { slug: hub.slug },
+        update: {
+          brandId,
+          name: hub.name,
+          modelCode: hub.modelCode,
+          supportsLocalControl: hub.supportsLocalControl,
+          cloudRequired: hub.cloudRequired,
+          maxDevices: hub.maxDevices,
+          notes: hub.notes,
+        },
+        create: {
+          brandId,
+          name: hub.name,
+          slug: hub.slug,
+          modelCode: hub.modelCode,
+          supportsLocalControl: hub.supportsLocalControl,
+          cloudRequired: hub.cloudRequired,
+          maxDevices: hub.maxDevices,
+          notes: hub.notes,
+        },
+      });
+    }),
+  );
+  hubRows.forEach((row, i) => {
+    const hub = hubGateways[i];
+    if (hub) hubIds.set(hub.slug, row.id);
+  });
 
   for (const product of curatedProducts) {
     const brandId = brandIds.get(product.brandSlug);
@@ -1985,207 +2590,316 @@ async function main() {
       throw new Error(`Brand not found for product: ${product.brandSlug}`);
     }
 
-    const row = await prisma.product.upsert({
-      where: { slug: product.slug },
-      update: {
-        brandId,
-        productType: product.productType,
-        name: product.name,
-        sku: product.sku,
-        modelCode: product.modelCode,
-        description: product.description,
-        requiresNeutral: product.requiresNeutral,
-        localControl: product.localControl,
-        cloudRequired: product.cloudRequired,
-        installationDifficulty: product.installationDifficulty,
-        recommendedTier: product.recommendedTier,
-        powerConsumption: product.powerConsumption
-          ? new Prisma.Decimal(product.powerConsumption)
-          : null,
-        activePowerUnit: product.activePowerUnit ?? "W",
-      },
-      create: {
-        brandId,
-        productType: product.productType,
-        name: product.name,
-        slug: product.slug,
-        sku: product.sku,
-        modelCode: product.modelCode,
-        description: product.description,
-        requiresNeutral: product.requiresNeutral,
-        localControl: product.localControl,
-        cloudRequired: product.cloudRequired,
-        installationDifficulty: product.installationDifficulty,
-        recommendedTier: product.recommendedTier,
-        powerConsumption: product.powerConsumption
-          ? new Prisma.Decimal(product.powerConsumption)
-          : null,
-        activePowerUnit: product.activePowerUnit ?? "W",
-      },
-    });
-
-    for (const protocolLink of product.protocols) {
-      const protocolId = protocolIds.get(protocolLink.slug);
-      if (!protocolId) {
-        throw new Error(`Protocol not found: ${protocolLink.slug}`);
-      }
-
-      await prisma.productProtocol.upsert({
-        where: {
-          productId_protocolId: {
-            productId: row.id,
-            protocolId,
-          },
-        },
+    await prisma.$transaction(async (tx) => {
+      const productRow = await tx.product.upsert({
+        where: { slug: product.slug },
         update: {
-          isPrimary: protocolLink.isPrimary ?? false,
-          minVersion: protocolLink.minVersion,
-          notes: protocolLink.notes,
+          brandId,
+          productType: product.productType,
+          name: product.name,
+          sku: product.sku,
+          modelCode: product.modelCode,
+          description: product.description,
+          requiresNeutral: product.requiresNeutral,
+          localControl: product.localControl,
+          cloudRequired: product.cloudRequired,
+          installationDifficulty: product.installationDifficulty,
+          recommendedTier: product.recommendedTier,
+          powerConsumption: product.powerConsumption
+            ? new Prisma.Decimal(product.powerConsumption)
+            : null,
+          activePowerUnit: (product.activePowerUnit ?? "W") as PowerUnit,
         },
         create: {
-          productId: row.id,
-          protocolId,
-          isPrimary: protocolLink.isPrimary ?? false,
-          minVersion: protocolLink.minVersion,
-          notes: protocolLink.notes,
+          brandId,
+          productType: product.productType,
+          name: product.name,
+          slug: product.slug,
+          sku: product.sku,
+          modelCode: product.modelCode,
+          description: product.description,
+          requiresNeutral: product.requiresNeutral,
+          localControl: product.localControl,
+          cloudRequired: product.cloudRequired,
+          installationDifficulty: product.installationDifficulty,
+          recommendedTier: product.recommendedTier,
+          powerConsumption: product.powerConsumption
+            ? new Prisma.Decimal(product.powerConsumption)
+            : null,
+          activePowerUnit: (product.activePowerUnit ?? "W") as PowerUnit,
         },
       });
-    }
+      const productId = productRow.id;
+      productIdsBySlug.set(product.slug, productId);
 
-    for (const code of product.capabilities) {
-      const capabilityId = capabilityIds.get(code);
-      if (!capabilityId) {
-        throw new Error(`Capability not found: ${code}`);
+      for (const protocolLink of product.protocols) {
+        const protocolId = protocolIds.get(protocolLink.slug);
+        if (!protocolId) {
+          throw new Error(`Protocol not found: ${protocolLink.slug}`);
+        }
+
+        await tx.productProtocol.upsert({
+          where: {
+            productId_protocolId: {
+              productId,
+              protocolId,
+            },
+          },
+          update: {
+            isPrimary: protocolLink.isPrimary ?? false,
+            minVersion: protocolLink.minVersion,
+            notes: protocolLink.notes,
+          },
+          create: {
+            productId,
+            protocolId,
+            isPrimary: protocolLink.isPrimary ?? false,
+            minVersion: protocolLink.minVersion,
+            notes: protocolLink.notes,
+          },
+        });
       }
 
-      await prisma.productCapability.upsert({
-        where: {
-          productId_capabilityId: {
-            productId: row.id,
+      for (const code of product.capabilities) {
+        const capabilityId = capabilityIds.get(code);
+        if (!capabilityId) {
+          throw new Error(`Capability not found: ${code}`);
+        }
+
+        await tx.productCapability.upsert({
+          where: {
+            productId_capabilityId: {
+              productId,
+              capabilityId,
+            },
+          },
+          update: {},
+          create: {
+            productId,
             capabilityId,
           },
-        },
-        update: {},
-        create: {
-          productId: row.id,
-          capabilityId,
-        },
-      });
-    }
-
-    for (const infraCode of product.infrastructureRequirements) {
-      const infrastructureRequirementId = infrastructureIds.get(infraCode);
-      if (!infrastructureRequirementId) {
-        throw new Error(`Infrastructure requirement not found: ${infraCode}`);
+        });
       }
 
-      await prisma.productInfrastructureRequirement.upsert({
-        where: {
-          productId_infrastructureRequirementId: {
-            productId: row.id,
+      for (const infraCode of product.infrastructureRequirements) {
+        const infrastructureRequirementId = infrastructureIds.get(infraCode);
+        if (!infrastructureRequirementId) {
+          throw new Error(`Infrastructure requirement not found: ${infraCode}`);
+        }
+
+        await tx.productInfrastructureRequirement.upsert({
+          where: {
+            productId_infrastructureRequirementId: {
+              productId,
+              infrastructureRequirementId,
+            },
+          },
+          update: {},
+          create: {
+            productId,
             infrastructureRequirementId,
           },
-        },
-        update: {},
-        create: {
-          productId: row.id,
-          infrastructureRequirementId,
-        },
-      });
-    }
-
-    for (const compatibility of product.ecosystemCompatibilities) {
-      const ecosystemId = ecosystemIds.get(compatibility.slug);
-      if (!ecosystemId) {
-        throw new Error(`Ecosystem not found: ${compatibility.slug}`);
+        });
       }
 
-      await prisma.productEcosystemCompatibility.upsert({
-        where: {
-          productId_ecosystemId: {
-            productId: row.id,
+      for (const compatibility of product.ecosystemCompatibilities) {
+        const ecosystemId = ecosystemIds.get(compatibility.slug);
+        if (!ecosystemId) {
+          throw new Error(`Ecosystem not found: ${compatibility.slug}`);
+        }
+
+        await tx.productEcosystemCompatibility.upsert({
+          where: {
+            productId_ecosystemId: {
+              productId,
+              ecosystemId,
+            },
+          },
+          update: {
+            level: compatibility.level,
+            requiresBridge: compatibility.requiresBridge ?? false,
+            requiresCloudLink: compatibility.requiresCloudLink ?? false,
+            notes: compatibility.notes,
+            testedAt: new Date(),
+          },
+          create: {
+            productId,
             ecosystemId,
+            level: compatibility.level,
+            requiresBridge: compatibility.requiresBridge ?? false,
+            requiresCloudLink: compatibility.requiresCloudLink ?? false,
+            notes: compatibility.notes,
+            testedAt: new Date(),
           },
-        },
-        update: {
-          level: compatibility.level,
-          requiresBridge: compatibility.requiresBridge ?? false,
-          requiresCloudLink: compatibility.requiresCloudLink ?? false,
-          notes: compatibility.notes,
-          testedAt: new Date(),
-        },
-        create: {
-          productId: row.id,
-          ecosystemId,
-          level: compatibility.level,
-          requiresBridge: compatibility.requiresBridge ?? false,
-          requiresCloudLink: compatibility.requiresCloudLink ?? false,
-          notes: compatibility.notes,
-          testedAt: new Date(),
-        },
-      });
-    }
-
-    for (const supplierLink of product.suppliers) {
-      const supplierId = supplierIds.get(supplierLink.supplierKey);
-      if (!supplierId) {
-        throw new Error(`Supplier not found: ${supplierLink.supplierKey}`);
+        });
       }
 
-      await prisma.productSupplier.upsert({
-        where: {
-          productId_supplierId: {
-            productId: row.id,
+      for (const supplierLink of product.suppliers) {
+        const supplierId = supplierIds.get(supplierLink.supplierKey);
+        if (!supplierId) {
+          throw new Error(`Supplier not found: ${supplierLink.supplierKey}`);
+        }
+
+        await tx.productSupplier.upsert({
+          where: {
+            productId_supplierId: {
+              productId,
+              supplierId,
+            },
+          },
+          update: {
+            supplierSku: supplierLink.supplierSku,
+            productUrl: supplierLink.productUrl,
+            currency: supplierLink.currency,
+            price:
+              typeof supplierLink.price === "number"
+                ? new Prisma.Decimal(supplierLink.price)
+                : null,
+            stockStatus: supplierLink.stockStatus ?? StockStatus.IN_STOCK,
+            estimatedDeliveryDays: supplierLink.estimatedDeliveryDays,
+            lastValidatedAt: new Date(),
+            isPreferredSupplier: supplierLink.isPreferredSupplier ?? false,
+          },
+          create: {
+            productId,
             supplierId,
+            supplierSku: supplierLink.supplierSku,
+            productUrl: supplierLink.productUrl,
+            currency: supplierLink.currency,
+            price:
+              typeof supplierLink.price === "number"
+                ? new Prisma.Decimal(supplierLink.price)
+                : null,
+            stockStatus: supplierLink.stockStatus ?? StockStatus.IN_STOCK,
+            estimatedDeliveryDays: supplierLink.estimatedDeliveryDays,
+            lastValidatedAt: new Date(),
+            isPreferredSupplier: supplierLink.isPreferredSupplier ?? false,
           },
-        },
-        update: {
-          supplierSku: supplierLink.supplierSku,
-          productUrl: supplierLink.productUrl,
-          currency: supplierLink.currency,
-          price: typeof supplierLink.price === "number" ? new Prisma.Decimal(supplierLink.price) : null,
-          stockStatus: supplierLink.stockStatus ?? StockStatus.IN_STOCK,
-          estimatedDeliveryDays: supplierLink.estimatedDeliveryDays,
-          lastValidatedAt: new Date(),
-          isPreferredSupplier: supplierLink.isPreferredSupplier ?? false,
-        },
-        create: {
-          productId: row.id,
-          supplierId,
-          supplierSku: supplierLink.supplierSku,
-          productUrl: supplierLink.productUrl,
-          currency: supplierLink.currency,
-          price: typeof supplierLink.price === "number" ? new Prisma.Decimal(supplierLink.price) : null,
-          stockStatus: supplierLink.stockStatus ?? StockStatus.IN_STOCK,
-          estimatedDeliveryDays: supplierLink.estimatedDeliveryDays,
-          lastValidatedAt: new Date(),
-          isPreferredSupplier: supplierLink.isPreferredSupplier ?? false,
-        },
-      });
-    }
-
-    for (const hubRelation of product.hubRelations ?? []) {
-      const hubId = hubIds.get(hubRelation.hubSlug);
-      if (!hubId) {
-        throw new Error(`Hub not found: ${hubRelation.hubSlug}`);
+        });
       }
 
-      await prisma.productHubGateway.upsert({
-        where: {
-          productId_hubId: {
-            productId: row.id,
+      for (const hubRelation of product.hubRelations ?? []) {
+        const hubId = hubIds.get(hubRelation.hubSlug);
+        if (!hubId) {
+          throw new Error(`Hub not found: ${hubRelation.hubSlug}`);
+        }
+
+        await tx.productHubGateway.upsert({
+          where: {
+            productId_hubId: {
+              productId,
+              hubId,
+            },
+          },
+          update: {
+            relationType: hubRelation.relationType,
+            notes: hubRelation.notes,
+          },
+          create: {
+            productId,
             hubId,
+            relationType: hubRelation.relationType,
+            notes: hubRelation.notes,
+          },
+        });
+      }
+    });
+  }
+
+  // 9) Bundles
+  // basePrice se calcula aquí consultando el precio preferred del supplier de cada producto.
+  const MARGIN = 1.25;
+
+  const bundleRows = await prisma.$transaction(
+    bundles.map((bundle) =>
+      prisma.bundle.upsert({
+        where: { slug: bundle.slug },
+        update: {
+          name: bundle.name,
+          description: bundle.description,
+          isActive: bundle.isActive,
+          tier: bundle.tier,
+        },
+        create: {
+          name: bundle.name,
+          slug: bundle.slug,
+          description: bundle.description,
+          isActive: bundle.isActive,
+          tier: bundle.tier,
+        },
+      }),
+    ),
+  );
+
+  for (const [i, bundle] of bundles.entries()) {
+    const bundleRow = bundleRows[i];
+    if (!bundleRow) continue;
+
+    let basePrice = new Prisma.Decimal(0);
+    const missingPrices: string[] = [];
+
+    for (const item of bundle.items) {
+      const productId = productIdsBySlug.get(item.productSlug);
+      if (!productId) {
+        missingPrices.push(item.productSlug);
+        continue;
+      }
+
+      const supplier = await prisma.productSupplier.findFirst({
+        where: {
+          productId,
+          isPreferredSupplier: true,
+        },
+      });
+
+      if (!supplier || supplier.price === null) {
+        missingPrices.push(item.productSlug);
+        continue;
+      }
+
+      const itemTotal = supplier.price.mul(item.quantity).toNumber() * MARGIN;
+      basePrice = new Prisma.Decimal(basePrice.toNumber() + itemTotal);
+    }
+
+    if (missingPrices.length > 0) {
+      console.warn(
+        `Bundle "${bundle.slug}": productos sin precio preferred: ${missingPrices.join(", ")}. basePrice calculado con fallback.`,
+      );
+    }
+
+    await prisma.bundle.update({
+      where: { id: bundleRow.id },
+      data: { basePrice },
+    });
+
+    // Upsert BundleItems
+    for (const item of bundle.items) {
+      const productId = productIdsBySlug.get(item.productSlug);
+      if (!productId) {
+        console.warn(
+          `BundleItem "${bundle.slug}": producto no encontrado: ${item.productSlug}`,
+        );
+        continue;
+      }
+
+      await prisma.bundleItem.upsert({
+        where: {
+          bundleId_productId: {
+            bundleId: bundleRow.id,
+            productId,
           },
         },
         update: {
-          relationType: hubRelation.relationType,
-          notes: hubRelation.notes,
+          quantity: item.quantity,
+          isOptional: item.isOptional,
+          notes: item.notes ?? null,
         },
         create: {
-          productId: row.id,
-          hubId,
-          relationType: hubRelation.relationType,
-          notes: hubRelation.notes,
+          bundleId: bundleRow.id,
+          productId,
+          quantity: item.quantity,
+          isOptional: item.isOptional,
+          notes: item.notes ?? null,
         },
       });
     }

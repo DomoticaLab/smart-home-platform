@@ -93,6 +93,7 @@ enum CapabilityCode {
   VIDEO
   PRESENCE
   ENERGY_MONITORING
+  SCENE
 }
 
 enum InfrastructureRequirementCode {

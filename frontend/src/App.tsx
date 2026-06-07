@@ -4,6 +4,7 @@ import { MainLayout } from './components/layout/MainLayout'
 
 const DashboardPage = lazy(() => import('./pages/DashboardPage'))
 const ProductsPage = lazy(() => import('./pages/ProductsPage'))
+const ProductDetailPage = lazy(() => import('./pages/ProductDetailPage'))
 const BundlesPage = lazy(() => import('./pages/BundlesPage'))
 const ClientsPage = lazy(() => import('./pages/ClientsPage'))
 const QuotesPage = lazy(() => import('./pages/QuotesPage'))
@@ -29,6 +30,7 @@ export default function App() {
         <Route element={<MainLayout />}>
           <Route path="/dashboard" element={<DashboardPage />} />
           <Route path="/products" element={<ProductsPage />} />
+          <Route path="/products/:slug" element={<ProductDetailPage />} />
           <Route path="/bundles" element={<BundlesPage />} />
           <Route path="/clients" element={<ClientsPage />} />
           <Route path="/quotes" element={<QuotesPage />} />
