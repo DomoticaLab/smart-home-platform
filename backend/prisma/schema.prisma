@@ -566,17 +566,24 @@ model Quote {
 model QuoteItem {
   id               String   @id @default(cuid())
   quoteId          String
-  productId        String
+  /// Referencia a producto del catálogo. NULL cuando el ítem es manual
+  /// (lo pidió el cliente y no existe en el catálogo). Ver customName.
+  productId        String?
   roomId           String?
+  /// Nombre del ítem cuando NO referencia un producto del catálogo
+  /// (ítem manual solicitado por el cliente). Mutuamente excluyente con productId.
+  customName       String?
+  /// Descripción opcional del ítem manual (modelo, referencia, proveedor).
+  customDescription String?
   quantity         Int      @default(1)
   unitPrice        Decimal? @db.Decimal(12, 2)
   estimatedInstall Decimal? @db.Decimal(12, 2)
   notes            String?
   createdAt        DateTime @default(now())
 
-  quote   Quote   @relation(fields: [quoteId], references: [id], onDelete: Cascade)
-  product Product @relation(fields: [productId], references: [id], onDelete: Restrict)
-  room    Room?   @relation(fields: [roomId], references: [id], onDelete: SetNull)
+  quote   Quote    @relation(fields: [quoteId], references: [id], onDelete: Cascade)
+  product Product? @relation(fields: [productId], references: [id], onDelete: Restrict)
+  room    Room?    @relation(fields: [roomId], references: [id], onDelete: SetNull)
 
   @@unique([quoteId, productId])
   @@index([productId])

@@ -15,6 +15,8 @@ export type ProductType =
   | 'IR'
   | 'OTHER'
 
+export type QuoteStatus = 'DRAFT' | 'REVIEW' | 'FINAL' | 'APPROVED' | 'ARCHIVED'
+
 export type RecommendedTier = 'ENTRY' | 'STANDARD' | 'PRO' | 'ENTERPRISE'
 
 export type StockStatus =

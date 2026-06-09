@@ -230,12 +230,19 @@ export class QuotesRepository {
   // Importante: el modelo QuoteItem tiene @@unique([quoteId, productId]),
   // por lo que agregar el mismo productId dos veces falla con P2002.
   // El servicio debe decidir si hace update o lanza ConflictException.
+  //
+  // Acepta tanto ítems de catálogo (productId presente) como manuales
+  // (customName presente). El servicio garantiza que llega exactamente
+  // uno de los dos a través de Zod refine; el repo simplemente propaga
+  // los campos al Prisma client.
   async addItem(quoteId: string, itemData: AddItemData): Promise<QuoteItem> {
     return this.prisma.quoteItem.create({
       data: {
         quoteId,
-        productId: itemData.productId,
+        productId: itemData.productId ?? null,
         roomId: itemData.roomId ?? null,
+        customName: itemData.customName ?? null,
+        customDescription: itemData.customDescription ?? null,
         quantity: itemData.quantity,
         unitPrice: itemData.unitPrice ?? null,
         estimatedInstall: itemData.estimatedInstall ?? null

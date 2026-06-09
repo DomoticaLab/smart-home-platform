@@ -186,14 +186,7 @@ export async function addItem(
   }
 
   try {
-    const item = await service.addItemToQuote(
-      id,
-      parsed.data.productId,
-      parsed.data.quantity,
-      parsed.data.roomId,
-      parsed.data.unitPrice,
-      parsed.data.estimatedInstall
-    )
+    const item = await service.addItemToQuote(id, parsed.data)
     return reply.code(201).send(item)
   } catch (err) {
     if (err instanceof NotFoundException) {

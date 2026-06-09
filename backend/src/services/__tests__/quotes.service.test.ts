@@ -371,7 +371,10 @@ describe('QuotesService', () => {
       )
 
       await expect(
-        service.addItemToQuote('quote-id-1', 'product-1', 2)
+        service.addItemToQuote('quote-id-1', {
+          productId: 'product-1',
+          quantity: 2
+        })
       ).rejects.toThrow(BadRequestException)
     })
 
@@ -379,7 +382,10 @@ describe('QuotesService', () => {
       mockRepo.findByIdSimple.mockResolvedValue(null)
 
       await expect(
-        service.addItemToQuote('inexistente', 'product-1', 1)
+        service.addItemToQuote('inexistente', {
+          productId: 'product-1',
+          quantity: 1
+        })
       ).rejects.toThrow(NotFoundException)
     })
   })

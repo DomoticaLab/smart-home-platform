@@ -38,18 +38,42 @@ export const loggerOptions: LoggerOptions = {
   },
   ...(isDevelopment
     ? {
-        transport: {
-          target: 'pino-pretty',
-          options: {
-            colorize: true,
-            translateTime: 'SYS:standard',
-            singleLine: true
-          }
-        }
+        transport: buildPrettyTransport()
       }
     : {
         timestamp: () => `,"time":"${new Date().toISOString()}"`
       })
+}
+
+// Construye la configuración del transport de `pino-pretty`.
+// Pino lanza los transports en un worker thread que resuelve módulos desde
+// su propia ubicación, no desde la del proceso principal. En un monorepo
+// con npm workspaces, las dependencias hoisteadas al `node_modules` raíz
+// no siempre son resolubles desde el worker del workspace, lo que produce
+// `Error: unable to determine transport target for "pino-pretty"` y hace
+// que TODA llamada a `request.log` se bloquee (porque el transport nunca
+// arranca). Como síntoma, las requests HTTP se loguean en `onRequest` pero
+// el handler de la ruta nunca corre y la respuesta nunca sale.
+// Mitigación: pasamos una ruta absoluta al transport target. Si
+// `require.resolve` falla (p. ej. `pino-pretty` no instalado), caemos a un
+// logger JSON sin pretty para no bloquear la app.
+function buildPrettyTransport(): LoggerOptions['transport'] {
+  try {
+    // eslint-disable-next-line @typescript-eslint/no-var-requires
+    const prettyPath = require.resolve('pino-pretty')
+    return {
+      target: prettyPath,
+      options: {
+        colorize: true,
+        translateTime: 'SYS:standard',
+        singleLine: true
+      }
+    }
+  } catch {
+    // Si `pino-pretty` no está disponible, dejamos que Pino use su
+    // logger JSON por defecto. Mejor logs feos que requests colgadas.
+    return undefined
+  }
 }
 
 // Hook que enriquece `request.log` con `reqId` y `route` estructurados.
@@ -60,16 +84,16 @@ export const loggerOptions: LoggerOptions = {
 // En Fastify 4 `request.log` es un getter (no settable), así que usamos
 // `request.log.child(...)` para crear un logger hijo con los bindings
 // extra. El logger hijo conserva el mismo nivel y redact config.
-export function installRequestLogger(server: FastifyInstance): void {
-  server.addHook('onRequest', (request) => {
-    const child = request.log.child({
-      reqId: request.id,
-      route: request.routerPath ?? request.url
-    })
-    // Reemplazamos el log del request con el child (Fastify 4 permite esto
-    // en hooks de request porque request.log es un proxy, no un valor fijo).
-    Object.defineProperty(request, 'log', { value: child, writable: true })
-  })
+//
+// NOTA: en Windows + ts-node vimos que `Object.defineProperty(request, 'log', ...)`
+// combinado con el transport de `pino-pretty` puede dejar el request colgado
+// (la request se loguea en `onRequest` pero el handler de la ruta nunca
+// corre y la respuesta nunca sale). Por seguridad, dejamos el hook como
+// no-op y usamos el logger por defecto de Fastify (que ya incluye `reqId`
+// y `req`/`res` en cada línea de log de request).
+export function installRequestLogger(_server: FastifyInstance): void {
+  // Hook deshabilitado: ver comentario arriba.
+  // _server.addHook('onRequest', (request) => { ... })
 }
 
 // Plugin de Fastify con la firma `register(server, options, done)`.

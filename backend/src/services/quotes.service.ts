@@ -46,6 +46,7 @@ export interface QuoteSummaryExport {
     items: Array<{
       productName: string
       brandName: string
+      isManual: boolean
       quantity: number
       unitPrice: number
       subtotal: number
@@ -217,17 +218,26 @@ export class QuotesService {
 
   // Agrega un item a una cotización en DRAFT.
   // - Valida que la quote exista y esté en DRAFT.
-  // - Valida que el producto exista.
-  // - Si roomId no viene, usa la primera room de la quote o crea una
-  //   default "General".
-  // - Si unitPrice no viene, busca preferredPrice del supplier × 1.45.
+  // Agrega un item a la cotización. Acepta dos variantes:
+  //   1. Ítem de catálogo: payload.productId presente. El servicio valida
+  //      que el producto exista, resuelve roomId y calcula unitPrice
+  //      (preferredPrice × 1.45) si no vienen.
+  //   2. Ítem manual: payload.customName presente. NO se valida producto
+  //      (no hay), y unitPrice es OBLIGATORIO en este caso (lo aporta el
+  //      vendedor, no se puede calcular del catálogo).
+  //
+  // En ambos casos la quote debe estar en DRAFT.
   async addItemToQuote(
     quoteId: string,
-    productId: string,
-    quantity: number,
-    roomId?: string,
-    unitPrice?: number,
-    estimatedInstall?: number
+    payload: {
+      productId?: string
+      roomId?: string
+      customName?: string
+      customDescription?: string
+      quantity: number
+      unitPrice?: number
+      estimatedInstall?: number
+    }
   ): Promise<QuoteItem> {
     const quote = await this.repo.findByIdSimple(quoteId)
     if (!quote) {
@@ -239,11 +249,24 @@ export class QuotesService {
       )
     }
 
-    // Validar que el producto exista.
-    await this.repo.ensureProductExists(productId)
+    const isManual = payload.customName !== undefined
+    const isCatalog = payload.productId !== undefined
+
+    if (isCatalog) {
+      // Validar que el producto exista.
+      await this.repo.ensureProductExists(payload.productId!)
+    } else if (isManual) {
+      // Para ítems manuales, unitPrice es obligatorio: no hay forma de
+      // calcularlo del catálogo porque el producto no existe.
+      if (payload.unitPrice === undefined) {
+        throw new BadRequestException(
+          'Los ítems manuales requieren unitPrice explícito (lo ingresa el vendedor).'
+        )
+      }
+    }
 
     // Resolver roomId: si no viene, usar la primera existente o crear "General".
-    let resolvedRoomId: string | null = roomId ?? null
+    let resolvedRoomId: string | null = payload.roomId ?? null
     if (!resolvedRoomId) {
       const firstRoom = await this.repo.findFirstRoom(quoteId)
       if (firstRoom) {
@@ -254,10 +277,13 @@ export class QuotesService {
       }
     }
 
-    // Resolver unitPrice: si no viene, buscar preferredPrice × 1.45.
-    let resolvedUnitPrice: number | undefined = unitPrice
-    if (resolvedUnitPrice === undefined) {
-      const preferredPrice = await this.repo.findPreferredSupplierPrice(productId)
+    // Resolver unitPrice: para catálogo, si no viene, buscar preferredPrice × 1.45.
+    // Para manuales, ya validamos arriba que venga.
+    let resolvedUnitPrice: number | undefined = payload.unitPrice
+    if (isCatalog && resolvedUnitPrice === undefined) {
+      const preferredPrice = await this.repo.findPreferredSupplierPrice(
+        payload.productId!
+      )
       if (preferredPrice !== null) {
         resolvedUnitPrice = Number(
           (preferredPrice * (1 + MARGIN_EQUIPMENT)).toFixed(2)
@@ -266,14 +292,16 @@ export class QuotesService {
     }
 
     const itemData: AddItemData = {
-      productId,
+      productId: payload.productId,
       // AddItemData.roomId es `string | undefined` (opcional). Convertimos
       // el null interno (que usamos como "sin asignar") a undefined para
       // que el contrato del schema de Zod se cumpla.
       roomId: resolvedRoomId ?? undefined,
-      quantity,
+      customName: payload.customName,
+      customDescription: payload.customDescription,
+      quantity: payload.quantity,
       unitPrice: resolvedUnitPrice,
-      estimatedInstall
+      estimatedInstall: payload.estimatedInstall
     }
 
     return this.repo.addItem(quoteId, itemData)
@@ -435,10 +463,12 @@ export class QuotesService {
     // 3. Copiar items (con el roomId mapeado al nuevo id).
     for (const item of original.items) {
       await this.repo.addItem(newQuote.id, {
-        productId: item.productId,
+        productId: item.productId ?? undefined,
         roomId: item.roomId
           ? roomIdMap.get(item.roomId) ?? undefined
           : undefined,
+        customName: item.customName ?? undefined,
+        customDescription: item.customDescription ?? undefined,
         quantity: item.quantity,
         unitPrice: item.unitPrice ? item.unitPrice.toNumber() : undefined,
         estimatedInstall: item.estimatedInstall
@@ -487,6 +517,7 @@ export class QuotesService {
         items: Array<{
           productName: string
           brandName: string
+          isManual: boolean
           quantity: number
           unitPrice: number
           subtotal: number
@@ -518,6 +549,7 @@ export class QuotesService {
       items: Array<{
         productName: string
         brandName: string
+        isManual: boolean
         quantity: number
         unitPrice: number
         subtotal: number
@@ -535,12 +567,18 @@ export class QuotesService {
     for (const item of quote.items) {
       const unitPrice = decimalToNumber(item.unitPrice)
       const subtotal = Number((item.quantity * unitPrice).toFixed(2))
+      // El modelo permite ítems manuales (product = NULL). En ese caso el
+      // nombre a mostrar en el PDF viene de customName; la marca se omite
+      // porque no aplica para equipos fuera del catálogo.
+      const productName =
+        item.product?.name ?? item.customName ?? 'Ítem manual sin nombre'
+      const brandName = item.product
+        ? (item.product.brand?.name ?? item.product.brandId)
+        : 'Ítem manual'
       const entry = {
-        productName: item.product.name,
-        // brandName se obtiene del include profundo (product.brand).
-        // Si la marca no existe, usamos el brandId como fallback para no
-        // romper la generación del PDF.
-        brandName: item.product.brand?.name ?? item.product.brandId,
+        productName,
+        brandName,
+        isManual: !item.product,
         quantity: item.quantity,
         unitPrice,
         subtotal

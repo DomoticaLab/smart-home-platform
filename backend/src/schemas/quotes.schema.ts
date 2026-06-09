@@ -62,22 +62,57 @@ export const CreateQuoteSchema = z.object({
 })
 
 // Body para POST /api/quotes/:id/items.
-// Si no se envía unitPrice, el servicio lo calcula como
-// preferredPrice × 1.45 (margen de equipos).
-export const AddItemSchema = z.object({
-  productId: z.string().uuid('productId debe ser un UUID válido'),
-  roomId: z.string().uuid('roomId debe ser un UUID válido').optional(),
-  quantity: z
-    .number()
-    .int('quantity debe ser entero')
-    .min(1, 'quantity debe ser >= 1'),
-  unitPrice: z.number().min(0, 'unitPrice debe ser >= 0').optional(),
-  estimatedInstall: z
-    .number()
-    .int('estimatedInstall debe ser entero')
-    .min(0, 'estimatedInstall debe ser >= 0')
-    .optional()
-})
+// Acepta dos variantes:
+//   1. Ítem de catálogo: envía productId (uuid o cuid válido). El precio se
+//      calcula como preferredPrice × 1.45 (margen de equipos) si no llega
+//      unitPrice.
+//   2. Ítem manual: envía customName (y opcionalmente customDescription).
+//      El cliente lo solicita por su nombre y no existe en el catálogo
+//      (ej: "batimix 1000", "cable UTP Cat6 por metro"). En este caso
+//      unitPrice es obligatorio.
+//
+// El refinado garantiza que venga exactamente uno de los dos.
+export const AddItemSchema = z
+  .object({
+    productId: z.string().min(1, 'productId requerido').optional(),
+    roomId: z.string().min(1, 'roomId requerido').optional(),
+    customName: z
+      .string()
+      .min(1, 'customName requerido para ítems manuales')
+      .max(200, 'customName demasiado largo')
+      .optional(),
+    customDescription: z
+      .string()
+      .max(1000, 'customDescription demasiado larga')
+      .optional(),
+    quantity: z
+      .number()
+      .int('quantity debe ser entero')
+      .min(1, 'quantity debe ser >= 1'),
+    unitPrice: z.number().min(0, 'unitPrice debe ser >= 0').optional(),
+    estimatedInstall: z
+      .number()
+      .int('estimatedInstall debe ser entero')
+      .min(0, 'estimatedInstall debe ser >= 0')
+      .optional()
+  })
+  .refine(
+    (data) =>
+      (data.productId !== undefined && data.customName === undefined) ||
+      (data.productId === undefined && data.customName !== undefined),
+    {
+      message:
+        'Debe enviar productId (ítem de catálogo) o customName (ítem manual), no ambos y no ninguno.',
+      path: ['customName']
+    }
+  )
+  .refine(
+    (data) => data.productId !== undefined || data.customName !== undefined,
+    {
+      message: 'Debe enviar productId o customName.',
+      path: ['productId']
+    }
+  )
 
 // Body para POST /api/quotes/:id/bundles.
 // El precio del bundle se calcula en el servicio como bundle.basePrice ×
