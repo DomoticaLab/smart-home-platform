@@ -29,11 +29,11 @@ El mercado objetivo son instaladores y empresas de acabados residenciales en Col
 - Fastify como framework HTTP
 - Prisma ORM + PostgreSQL
 - Arquitectura en capas estricta: `routes → controllers → services → repositories`
-- Validación con Zod en cada capa de entrada
-- Testing unitario con Vitest
+- Zod para validación de variables de entorno (`lib/config.ts`)
+- Vitest configurado como test runner (aún sin suites de tests)
 
 **Frontend**
-- React 18 + Vite + TypeScript
+- React 19 + Vite + TypeScript
 - Tailwind CSS con paleta de diseño oscuro personalizada
 - React Query para manejo de estado del servidor
 - React Router v6 para navegación
@@ -53,24 +53,30 @@ El mercado objetivo son instaladores y empresas de acabados residenciales en Col
 
 ## Arquitectura del sistema
 
+```text
 domotica-platform/
-├── backend/                    # API REST + lógica de negocio
+├── backend/                     # API REST + lógica de negocio
 │   ├── src/
-│   │   ├── routes/             # Definición de endpoints
-│   │   ├── controllers/        # Manejo de request/response
-│   │   ├── services/           # Lógica de negocio
-│   │   ├── repositories/       # Acceso a datos via Prisma
-│   │   ├── schemas/            # Validación Zod
-│   │   └── lib/                # Prisma client, config, errores
+│   │   ├── routes/              # Definición de endpoints
+│   │   ├── controllers/         # Manejo de request/response
+│   │   ├── services/            # Lógica de negocio
+│   │   ├── repositories/        # Acceso a datos via Prisma
+│   │   ├── types/               # Tipos compartidos por dominio
+│   │   └── lib/                 # Prisma client, config (validado con Zod)
 │   └── prisma/
-│       ├── schema.prisma       # Modelo de datos completo
-│       └── seed.ts             # Catálogo inicial de productos
-└── frontend/                   # Aplicación React
-└── src/
-├── pages/              # Vistas principales
-├── components/         # Sistema de componentes UI
-├── hooks/              # React Query hooks
-└── services/           # Llamadas a la API
+│       ├── schema.prisma        # Modelo de datos completo
+│       └── seed.ts              # Catálogo inicial de productos
+└── frontend/                    # Aplicación React
+    └── src/
+        ├── pages/               # Vistas principales (dashboard, catálogo, bundles,
+        │                        #   clientes, cotizaciones, wizard de cotización)
+        ├── components/
+        │   └── layout/          # MainLayout y estructura general de la app
+        ├── lib/                 # Cliente HTTP para consumir la API
+        └── assets/              # Recursos estáticos
+```
+
+Los dominios implementados en el backend (con su recorrido completo `routes → controllers → services → repositories`) son: **bundles**, **clients**, **quotes** y **products**.
 
 ---
 
@@ -126,9 +132,37 @@ Los sistemas que dependen de servidores cloud del fabricante tienen un problema 
 | Frontend — catálogo y bundles | ✅ Completo |
 | Frontend — wizard de cotización | ✅ Completo |
 | Frontend — dashboard | ✅ Completo |
-| Tests unitarios de servicios | 🔄 En progreso |
+| Tests unitarios de servicios | 🔲 Pendiente (Vitest configurado, sin suites aún) |
 | Exportación a PDF | 🔲 Próxima fase |
 | Módulo de instalación y garantías | 🔲 Próxima fase |
+
+---
+
+## Cómo ejecutar el proyecto localmente
+
+Requiere Node.js, npm y Docker (para PostgreSQL).
+
+```bash
+# 1. Clonar e instalar dependencias del monorepo (workspaces backend + frontend)
+npm install
+
+# 2. Levantar PostgreSQL en Docker
+docker compose -f backend/docker-compose.yml up -d
+
+# 3. Configurar variables de entorno del backend
+cp backend/.env.example backend/.env
+# Editar backend/.env con las credenciales que corresponda
+
+# 4. Aplicar migraciones y cargar el catálogo inicial
+npm run db:migrate
+npm run db:seed
+
+# 5. Levantar backend y frontend (en terminales separadas)
+npm run dev:backend
+npm run dev:frontend
+```
+
+Otros scripts disponibles desde la raíz del monorepo: `build:backend`, `build:frontend`, `db:studio` (Prisma Studio) y `test` (Vitest sobre el workspace de backend).
 
 ---
 
@@ -147,5 +181,3 @@ Ingeniero Electrónico — Universidad del Norte, Barranquilla
 Desarrollador backend independiente especializado en Node.js, TypeScript y sistemas IoT
 
 [GitHub](https://github.com/Lmz-23) · [LinkedIn](https://linkedin.com/in/leonardo-muñoz-50a45a365)
-
-## Arquitectura del sistema
